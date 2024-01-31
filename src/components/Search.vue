@@ -110,15 +110,17 @@ function showPdf(hit) {
         ></v-text-field>
       </v-col>
     </v-row>
-    <v-row v-for="(hit, i) in searchHits" :key="hit+i">
-      <v-col @click="showPdf(hit)">
-        {{hit.pdfFile}}.pdf, page {{hit.page}} <span style="float: right">(score {{hit.score}})</span>
-        <div class="highlight" v-for="(highlight,j) in hit.highlights" :key="hit+i+highlight+j" v-html="styleTibetan(highlight, searchTerm)"></div>
+    <v-row>
+      <v-col class="search-results-col">
+        <v-row v-for="(hit, i) in searchHits" :key="hit+i">
+          <v-col @click="showPdf(hit)">
+            {{hit.pdfFile}}.pdf, page {{hit.page}} <span style="float: right">(score {{hit.score}})</span>
+            <div class="highlight" v-for="(highlight,j) in hit.highlights" :key="hit+i+highlight+j" v-html="styleTibetan(highlight, searchTerm)"></div>
+          </v-col>
+        </v-row>
       </v-col>
-    </v-row>
-    <v-row v-if="pdfSource" justify="center">
-      <v-col align-self="center" cols="8">
-        <VuePdfEmbed :source="pdfSource" :page="pdfPage" text-layer annotation-layer width="800"/>
+      <v-col cols="8" v-if="pdfSource" justify="center">
+        <VuePdfEmbed :source="pdfSource" :page="pdfPage" text-layer annotation-layer height="1200"/>
       </v-col>
     </v-row>
   </v-container>
@@ -135,5 +137,9 @@ function showPdf(hit) {
 .highlight em, .highlight .tibetan em {
   background-color: yellow !important;
   font-style: normal !important;
+}
+.search-results-col {
+  overflow-y: scroll;
+  max-height: 900px;
 }
 </style>

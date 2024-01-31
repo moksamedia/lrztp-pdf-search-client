@@ -12,7 +12,9 @@
   "dependencies": {
     "axios": "^1.6.7",
     "lodash": "^4.17.21",
+    "pdfjs-dist": "^4.0.379",
     "pinia": "^2.1.7",
+    "pspdfkit": "^2024.1.1",
     "vue": "^3.4.15",
     "vue-pdf-embed": "^2.0.2",
     "vue-router": "^4.2.5",
