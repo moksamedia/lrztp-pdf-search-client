@@ -4,7 +4,7 @@ import { RouterLink, RouterView } from 'vue-router'
 
 <template>
   <v-app>
-    <v-container fluid>
+    <v-container>
       <v-app-bar :elevation="2">
         <template v-slot:prepend>
           <v-app-bar-nav-icon></v-app-bar-nav-icon>
@@ -17,6 +17,4 @@ import { RouterLink, RouterView } from 'vue-router'
 </template>
 
 <style>
-.v-application {
-}
 </style>

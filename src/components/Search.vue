@@ -1,5 +1,6 @@
 <script setup>
-import {ref} from 'vue'
+import {ref, inject} from 'vue'
+const theWindow = inject('window')
 import {useSearchStore} from "../stores/search.js";
 import { storeToRefs } from 'pinia'
 import axios from 'axios'
@@ -17,33 +18,17 @@ const searchHits = ref([])
 
 const pdfSource = ref('')
 const pdfPage = ref(1)
+const pdfHit = ref(null)
+const pdfNumPages = ref(0)
 
 function isString(test) {
   return typeof text !== 'string' || text instanceof String
 }
 
 function processTibetan(text, style, _class) {
-  return text.replace(/([\u0F00-\u0FFF]+|<em>|<\/em>)+/gm, (match) => {
-    return `<span style="${style}" class="${_class}">${match}</span>`
+  return text.replace(/([\u0F00-\u0FFF]+\s?|<em>|<\/em>)+/gm, (match) => {
+    return `<span class="${_class}">${match}</span>`
   })
-}
-
-function highlight(words, query, highlightClass) {
-
-  if (!words || typeof words !== 'string') return words;
-
-  query = query.replace(/"/g, "");
-
-  console.log("words="+words)
-  console.log("query="+query)
-
-  let spanOpen = '<span class="'+highlightClass+'">';
-  let spanClose = '</span>';
-
-  return words.replace(new RegExp(query, "g"), function (match) {
-    return spanOpen+match+spanClose;
-  });
-
 }
 
 function styleTibetan(text, searchTerm) {
@@ -56,7 +41,7 @@ async function doSearch() {
   console.log("searchTerm="+searchTerm.value)
   const results = await axios.get('http://localhost:3000', {
     params: {
-      searchTerm: searchTerm.value
+      searchTerm: searchTerm.value,
     }
   })
   console.log(results)
@@ -73,7 +58,9 @@ async function doSearch() {
       searchFile: hit._source.fileName,
       ocr: hit._source.ocr,
       page: hit._source.page,
-      highlights: hit.highlight.text
+      highlights: hit.highlight.text,
+      module: hit._source.module,
+      lesson: hit._source.lesson
     }
   })
   const hitsFiltered = hitsProcessed.filter(hit => {
@@ -88,41 +75,91 @@ async function doSearch() {
   })
   console.log("hitsProcessed",hitsProcessed)
   console.log("hitsFiltered",hitsFiltered)
-  searchHits.value = hitsFiltered
+  searchHits.value = hitsProcessed
 }
 function showPdf(hit) {
   console.log(`Showing pdf ${hit.pdfFile} page ${hit.page}`)
   pdfPage.value = hit.page
+  pdfHit.value = hit
   pdfSource.value = encodeURI(`./pdfs/${hit.pdfFile}.pdf`)
 }
+function previousPage() {
+  if (pdfPage.value === 1) return;
+  pdfPage.value = pdfPage.value - 1
+}
+function nextPage() {
+  if (pdfPage.value === pdfNumPages.value) return;
+  pdfPage.value = pdfPage.value + 1
+}
+
+function handlePdfLoad({numPages}) {
+  pdfNumPages.value = numPages
+  //find(aString, aCaseSensitive, aBackwards, aWrapAround, aWholeWord, aSearchInFrames, aShowDialog)
+  //theWindow.find(searchTerm.value,false,false,false,false,true,true)
+}
+
+function goBack() {
+  pdfPage.value = 1
+  pdfHit.value = null
+  pdfSource.value = ''
+}
+
 </script>
 <template>
-  <v-container fluid>
-    <v-row no-gutters>
-      <v-col>
-        <v-text-field
-            class="search-text"
-            label="Label"
-            append-icon="mdi-magnify"
-            variant="outlined"
-            v-model="searchTerm"
-            @click:append="doSearch"
-        ></v-text-field>
-      </v-col>
-    </v-row>
-    <v-row>
-      <v-col class="search-results-col">
-        <v-row v-for="(hit, i) in searchHits" :key="hit+i">
-          <v-col @click="showPdf(hit)">
-            {{hit.pdfFile}}.pdf, page {{hit.page}} <span style="float: right">(score {{hit.score}})</span>
-            <div class="highlight" v-for="(highlight,j) in hit.highlights" :key="hit+i+highlight+j" v-html="styleTibetan(highlight, searchTerm)"></div>
-          </v-col>
-        </v-row>
-      </v-col>
-      <v-col cols="8" v-if="pdfSource" justify="center">
-        <VuePdfEmbed :source="pdfSource" :page="pdfPage" text-layer annotation-layer height="1200"/>
-      </v-col>
-    </v-row>
+  <v-container>
+    <div v-if="pdfHit">
+      <v-row>
+        <v-col>
+          <div style="margin-bottom: 10px"><v-btn rounded="lg" @click="goBack">Back to results list</v-btn></div>
+          <div><h2>{{pdfHit.pdfFile}}.pdf, page {{pdfHit.page}} {{pdfHit.ocr ? "ocr" : "raw"}}</h2> <span style="float: right">(score {{pdfHit.score}})</span></div>
+          <div>Module {{pdfHit.module}}, Lesson {{pdfHit.lesson}}</div>
+          <ul class="highlight-list-container">
+            <li class="highlight" v-for="(highlight,j) in pdfHit.highlights" :key="highlight+j" v-html="styleTibetan(highlight, searchTerm)"></li>
+          </ul>
+        </v-col>
+      </v-row>
+      <v-row>
+        <div style="width: 1000px; margin: 30px auto 0px;" id="pdf-viewer-container">
+          <v-btn :disabled="pdfPage === 1" rounded="lg" size="small" @click="previousPage">prev</v-btn>
+          <v-btn :disabled="pdfPage === pdfNumPages" rounded="lg" size="small" @click="nextPage">next</v-btn>
+          <span>Showing page {{pdfPage}} of {{pdfNumPages}}</span>
+          <VuePdfEmbed
+              id="pdf-viewer"
+              :source="pdfSource"
+              :page="pdfPage"
+              text-layer annotation-layer width="1000"
+              @loaded="handlePdfLoad"
+          />
+        </div>
+      </v-row>
+    </div>
+    <div v-else>
+      <v-row>
+        <v-col>
+          <v-text-field
+              class="search-text"
+              label="Label"
+              append-icon="mdi-magnify"
+              variant="outlined"
+              v-model="searchTerm"
+              @click:append="doSearch"
+          ></v-text-field>
+        </v-col>
+      </v-row>
+      <v-row>
+        <v-col class="search-results-col">
+          <v-row v-for="(hit, i) in searchHits" :key="hit+i">
+            <v-col @click="showPdf(hit)">
+              <div><h2>{{hit.pdfFile}}.pdf, page {{hit.page}} {{hit.ocr ? "ocr" : "raw"}}</h2> <span style="float: right">(score {{hit.score}})</span></div>
+              <div>Module {{hit.module}}, Lesson {{hit.lesson}}</div>
+              <ul class="highlight-list-container">
+                <li class="highlight" v-for="(highlight,j) in hit.highlights" :key="hit+i+highlight+j" v-html="styleTibetan(highlight, searchTerm)"></li>
+              </ul>
+            </v-col>
+          </v-row>
+        </v-col>
+      </v-row>
+    </div>
   </v-container>
 </template>
 <style>
@@ -130,6 +167,7 @@ function showPdf(hit) {
   margin-top: 50px;
 }
 .search-text {
+  max-width: 600px;
 }
 .tibetan {
   font-size: 160%;
@@ -139,7 +177,24 @@ function showPdf(hit) {
   font-style: normal !important;
 }
 .search-results-col {
-  overflow-y: scroll;
-  max-height: 900px;
 }
+#pdf-viewer {
+}
+#pdf-viewer-container .v-btn {
+  margin: 10px;
+}
+#pdf-viewer-container {
+  text-align: center;
+}
+.highlight-list-container ul.highlight li {
+  list-style-type: circle;
+  color: black;
+  list-style-position: inside;
+  margin: 0px;
+  padding: 0px;
+}
+.highlight-list-container {
+  margin-left: 20px;
+}
+
 </style>
