@@ -39,10 +39,18 @@ function styleTibetan(text, searchTerm) {
 
 async function doSearch() {
   console.log("searchTerm="+searchTerm.value)
-  const results = await axios.get('http://localhost:3000', {
-    params: {
-      searchTerm: searchTerm.value,
-    }
+  const highlight = {
+    fields: {
+      text: {}
+    },
+    boundary_chars:".,!? \t\n།",
+    boundary_scanner:'word',
+    fragment_size: 40,
+    type: 'plain'
+  };
+  const results = await axios.post('http://localhost:3000', {
+    searchTerm: searchTerm.value,
+    highlight: highlight
   })
   console.log(results)
   //console.log(JSON.stringify(results,null,2))
@@ -60,22 +68,43 @@ async function doSearch() {
       page: hit._source.page,
       highlights: hit.highlight.text,
       module: hit._source.module,
-      lesson: hit._source.lesson
+      lesson: hit._source.lesson,
+      filterKey: `${hit._source.baseName}-${hit._source.page}`
     }
   })
-  const hitsFiltered = hitsProcessed.filter(hit => {
-    const filterKey = `${hit.pdfFile}-${hit.page}`
-    if (!filterSet.has(filterKey)) {
-      filterSet.add(filterKey)
-      return true
+
+  let hitsFiltered = new Map()
+
+  hitsProcessed.forEach (hit => {
+    console.log('hit.filterKey:' + hit.filterKey)
+    const hitAlreadyInSet = hitsFiltered.get(hit.filterKey);
+    if (hitAlreadyInSet !== undefined) {
+      console.log('hitAlreadyInSet:' + hitAlreadyInSet.filterKey)
+      //compare score and keep best score
+      if (hit.score > hitAlreadyInSet.score) {
+        hit.hiddenHit = hitAlreadyInSet
+        hitsFiltered.set(hit.filterKey, hit)
+      }
     }
     else {
-      return false
+      hitsFiltered.set(hit.filterKey, hit)
     }
   })
+
+  hitsFiltered = Array.from(hitsFiltered.values())
+  const hitsSorted = hitsFiltered.sort((a, b) => {
+    if (a.filterKey < b.filterKey) {
+      return -1;
+    }
+    if (a.filterKey > b.filterKey) {
+      return 1;
+    }
+    return 0;
+  });
+
   console.log("hitsProcessed",hitsProcessed)
-  console.log("hitsFiltered",hitsFiltered)
-  searchHits.value = hitsProcessed
+  console.log("hitsSorted",hitsSorted)
+  searchHits.value = hitsSorted
 }
 function showPdf(hit) {
   console.log(`Showing pdf ${hit.pdfFile} page ${hit.page}`)

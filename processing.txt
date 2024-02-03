@@ -1,0 +1,12 @@
+Copy pdfs from shared folder to 'pdfs-to-process' folder
+Rename them to have "Lesson X - " at the beginning (except the main LRZTP 9 ... file)
+- these filenames will be the key names in the elasticsearch db
+Edit the 'process-scripts/pdfs-to-process/fields.properties' file
+Run bash process-all.sh from 'pdf-search/process-scripts'
+- this will perform the page splitting and ocr
+- outputs files to 'process-scripts/pdf-output'
+- a directory for each processed file is made
+(Make sure express server and elasticsearch server are running)
+If all is well, run 'node processpdfs.js'
+Copy pdf files from `process-scripts/pdfs-to-process/` to 'client/public/pdfs' and 'process-scripts/processed-pdfs'
+Delete pdfs from 'pdfs-to-process' folder
