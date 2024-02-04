@@ -1,6 +1,5 @@
 <script setup>
 import {ref, inject} from 'vue'
-const theWindow = inject('window')
 import {useSearchStore} from "../stores/search.js";
 import { storeToRefs } from 'pinia'
 import axios from 'axios'
@@ -167,7 +166,7 @@ function goBack() {
         <v-col>
           <v-text-field
               class="search-text"
-              label="Label"
+              label="Search"
               append-icon="mdi-magnify"
               variant="outlined"
               v-model="searchTerm"
