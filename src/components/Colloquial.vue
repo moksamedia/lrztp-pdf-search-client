@@ -14,6 +14,9 @@ import 'vue-pdf-embed/dist/style/textLayer.css'
 const searchStore = useSearchStore()
 const { searchTerm } = storeToRefs(searchStore)
 const searchHits = ref([])
+const searchMaxHits = ref(200)
+const numHits = ref(0)
+const millis = ref(null)
 
 function isString(test) {
   return typeof text !== 'string' || text instanceof String
@@ -26,7 +29,7 @@ function processTibetan(text, style, _class) {
 }
 
 function styleTibetan(text,hit) {
-  console.log(`text=${text}`)
+  //console.log(`text=${text}`)
 
   if (text == null || !isString(text) || text.trim() === "") return text;
 
@@ -67,7 +70,7 @@ function styleTibetan(text,hit) {
   return processed
 }
 
-async function doSearch() {
+async function doSearch(more) {
   console.log("searchTerm="+searchTerm.value)
   const highlight = {
     fields: {
@@ -78,7 +81,7 @@ async function doSearch() {
     number_of_fragments: 0,
     type:'fvh'
   };
-  const searchDefinition = false
+  const searchDefinition = true
   const query = searchDefinition ? {
     multi_match: {
       query: searchTerm.value,
@@ -89,24 +92,39 @@ async function doSearch() {
       definiendum: searchTerm.value,
     }
   }
+
+  const from = more ? searchHits.value.length : 0
+
   const results = await axios.post('http://localhost:3000/colloquial', {
+    from: from,
     query: query,
-    size: 1000,
+    size: searchMaxHits.value,
+    index: 'tib_eng_dicts',
     highlight: highlight
   })
   console.log(results)
   //console.log(JSON.stringify(results,null,2))
-  const numHits = _.get(results, 'data.result.hits.total.value', null)
-  const millis = _.get(results, 'data.results.took', 0)
+  numHits.value = _.get(results, 'data.result.hits.total.value', null)
+  millis.value = _.get(results, 'data.result.took', 0)
   const hits = _.get(results, 'data.result.hits.hits', null)
-  console.log(`${numHits} hits in ${millis}ms:`, hits)
-  searchHits.value = hits
+  console.log(`${numHits.value} hits in ${millis.value}ms:`, hits)
+
+  if (more) {
+    searchHits.value.push(...hits)
+  }
+  else {
+    searchHits.value = hits
+  }
+}
+
+function loadMore() {
+
 }
 
 function getHighlightIfExists(hit, field) {
   const highlight = _.get(hit, 'highlight.'+field+'[0]', null)
   const fromSource = _.get(hit, '_source.'+field, null)
-  console.log(`highlight=${highlight}, fromSource=${fromSource}`)
+  //console.log(`highlight=${highlight}, fromSource=${fromSource}`)
   return highlight != null ? highlight : fromSource
 }
 
@@ -155,16 +173,21 @@ function getSourceName(index) {
             append-icon="mdi-magnify"
             variant="outlined"
             v-model="searchTerm"
-            @click:append="doSearch"
+            @click:append="doSearch(false)"
         ></v-text-field>
+      </v-col>
+    </v-row>
+    <v-row v-if="numHits > 0">
+      <v-col>
+        {{numHits}} hits in {{millis}} milliseconds (showing {{searchHits.length}})
       </v-col>
     </v-row>
     <v-row>
       <v-col class="search-results-col">
-        <v-row v-for="(hit,i) in searchHits" :key="hit+i">
+        <v-row v-for="(hit,i) in searchHits" :key="hit._id">
           <v-col>
             <v-row>
-              <v-col cols="2" v-html="styleTibetan(getHighlightIfExists(hit, 'definiendum'))">
+              <v-col cols="3" v-html="styleTibetan(getHighlightIfExists(hit, 'definiendum'))">
               </v-col>
               <v-col v-html="styleTibetan(getHighlightIfExists(hit, 'definition'),hit)">
               </v-col>
@@ -174,6 +197,11 @@ function getSourceName(index) {
             </v-row>
           </v-col>
         </v-row>
+      </v-col>
+    </v-row>
+    <v-row v-if="searchHits && searchHits.length > 0 && searchHits.length < numHits">
+      <v-col>
+        <v-btn @click="doSearch(true)">More</v-btn>
       </v-col>
     </v-row>
   </v-container>

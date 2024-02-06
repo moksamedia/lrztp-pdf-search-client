@@ -47,9 +47,17 @@ async function doSearch() {
     fragment_size: 40,
     type: 'plain'
   };
+  const query = {
+    index: ['lrztp','tibetan_pdfs'],
+    highlight: highlight,
+    query: {
+      match_phrase: {
+        text: searchTerm.value
+      }
+    }
+  };
   const results = await axios.post('http://localhost:3000', {
-    searchTerm: searchTerm.value,
-    highlight: highlight
+    query: query
   })
   console.log(results)
   //console.log(JSON.stringify(results,null,2))
@@ -65,6 +73,8 @@ async function doSearch() {
       searchFile: hit._source.fileName,
       ocr: hit._source.ocr,
       page: hit._source.page,
+      loadByPages: hit._source.loadbypages,
+      numpages: hit._source.numpages, // only filled for loadbypages pdfs
       highlights: hit.highlight.text,
       module: hit._source.module,
       lesson: hit._source.lesson,
@@ -106,21 +116,34 @@ async function doSearch() {
   searchHits.value = hitsSorted
 }
 function showPdf(hit) {
-  console.log(`Showing pdf ${hit.pdfFile} page ${hit.page}`)
+  console.log(`Showing pdf ${hit.pdfFile} page ${hit.page}`,hit);
   pdfPage.value = hit.page
   pdfHit.value = hit
-  pdfSource.value = encodeURI(`./pdfs/${hit.pdfFile}.pdf`)
+  if (hit.loadByPages) {
+    pdfNumPages.value = hit.numpages
+    pdfSource.value = encodeURI(`./pdfs/${hit.pdfFile}/${hit.pdfFile}_ocr_pp${hit.page}.pdf`)
+  }
+  else {
+    pdfSource.value = encodeURI(`./pdfs/${hit.pdfFile}.pdf`)
+  }
 }
 function previousPage() {
   if (pdfPage.value === 1) return;
   pdfPage.value = pdfPage.value - 1
+  if (pdfHit.value.loadByPages) {
+    pdfSource.value = encodeURI(`./pdfs/${pdfHit.value.pdfFile}/${pdfHit.value.pdfFile}_ocr_pp${pdfPage.value}.pdf`)
+  }
 }
 function nextPage() {
   if (pdfPage.value === pdfNumPages.value) return;
   pdfPage.value = pdfPage.value + 1
+  if (pdfHit.value.loadByPages) {
+    pdfSource.value = encodeURI(`./pdfs/${pdfHit.value.pdfFile}/${pdfHit.value.pdfFile}_ocr_pp${pdfPage.value}.pdf`)
+  }
 }
 
 function handlePdfLoad({numPages}) {
+  if (pdfHit.value.loadByPages) return;
   pdfNumPages.value = numPages
   //find(aString, aCaseSensitive, aBackwards, aWrapAround, aWholeWord, aSearchInFrames, aShowDialog)
   //theWindow.find(searchTerm.value,false,false,false,false,true,true)
@@ -154,7 +177,7 @@ function goBack() {
           <VuePdfEmbed
               id="pdf-viewer"
               :source="pdfSource"
-              :page="pdfPage"
+              :page="pdfHit.loadByPages ? 1 : pdfPage"
               text-layer annotation-layer width="1000"
               @loaded="handlePdfLoad"
           />
